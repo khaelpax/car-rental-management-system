@@ -2,6 +2,8 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { getCars } from '../services/carService';
 import { getRecommendations } from '../services/aiService';
+import { getWeatherSummaryForCity } from '../services/weatherService';
+import { NORTH_SULAWESI_CITIES } from '../data/locations';
 import { LoadingSpinner } from '../components';
 import type { Car, CarSummary, RecommendResponse } from '../types';
 import { formatIDR } from '../utils/formatters';
@@ -20,6 +22,10 @@ export const AssistantPage: React.FC = () => {
   const [fleetError, setFleetError] = useState<string | null>(null);
 
   const [query, setQuery] = useState('');
+  const [destinationCity, setDestinationCity] = useState('');
+  const [weatherPreview, setWeatherPreview] = useState<string | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [apiError, setApiError] = useState<string | null>(null);
   const [result, setResult] = useState<RecommendResponse | null>(null);
@@ -42,6 +48,42 @@ export const AssistantPage: React.FC = () => {
 
     loadFleet();
   }, []);
+
+  // When destination city changes, optionally fetch 3-day weather preview
+  useEffect(() => {
+    if (!destinationCity) {
+      setWeatherPreview(null);
+      return;
+    }
+
+    const city = NORTH_SULAWESI_CITIES.find((c) => c.name === destinationCity);
+    if (!city) return;
+
+    let isCancelled = false;
+    setWeatherLoading(true);
+
+    getWeatherSummaryForCity(city, 3)
+      .then((summary) => {
+        if (!isCancelled) {
+          setWeatherPreview(summary);
+        }
+      })
+      .catch((err) => {
+        console.error('Failed to preview weather:', err);
+        if (!isCancelled) {
+          setWeatherPreview(null);
+        }
+      })
+      .finally(() => {
+        if (!isCancelled) {
+          setWeatherLoading(false);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [destinationCity]);
 
   // Filter only available cars and map to CarSummary
   const availableCarSummaries = useMemo<CarSummary[]>(() => {
@@ -90,7 +132,22 @@ export const AssistantPage: React.FC = () => {
     setIsSubmitting(true);
 
     try {
-      const response = await getRecommendations(textToSubmit, availableCarSummaries);
+      // If destination city is selected, ensure we have its 3-day weather summary string
+      let weatherContext: string | undefined = undefined;
+
+      if (destinationCity) {
+        const city = NORTH_SULAWESI_CITIES.find((c) => c.name === destinationCity);
+        if (city) {
+          weatherContext =
+            weatherPreview || (await getWeatherSummaryForCity(city, 3));
+        }
+      }
+
+      const response = await getRecommendations(
+        textToSubmit,
+        availableCarSummaries,
+        weatherContext
+      );
       setResult(response);
     } catch (err) {
       console.error('AI recommendation error:', err);
@@ -113,11 +170,11 @@ export const AssistantPage: React.FC = () => {
       <header className="page-header">
         <div className="ai-badge-header">
           <span className="ai-sparkle-icon">✨</span>
-          <span>Powered by Gemini AI</span>
+          <span>Powered by Gemini AI + Open-Meteo Weather</span>
         </div>
         <h1 className="page-title">AI Car Rental Advisor</h1>
         <p className="page-subtitle">
-          Ceritakan rencana perjalanan, jumlah penumpang, destinasi, atau preferensi Anda. AI kami akan memilihkan mobil rental yang paling pas dari armada kami.
+          Ceritakan rencana perjalanan, destinasi, atau preferensi Anda. AI kami akan memadukan kondisi cuaca aktual dengan katalog armada kami untuk merekomendasikan kendaraan terbaik.
         </p>
       </header>
 
@@ -134,6 +191,44 @@ export const AssistantPage: React.FC = () => {
           {/* Query Input Card */}
           <div className="ai-input-card">
             <form onSubmit={(e) => handleSubmit(e)} className="ai-form">
+              {/* Destination City Selection (Optional) */}
+              <div className="form-group" style={{ marginBottom: '1.25rem' }}>
+                <label htmlFor="ai-destination-city" className="ai-destination-label">
+                  📍 Destinasi / Kota Kunjungan (Opsional)
+                  <span className="ai-optional-tag">Prakiraan cuaca 3 hari otomatis dianalisis</span>
+                </label>
+                <select
+                  id="ai-destination-city"
+                  className="form-input"
+                  value={destinationCity}
+                  onChange={(e) => setDestinationCity(e.target.value)}
+                  disabled={isSubmitting}
+                >
+                  <option value="">-- Pilih Kota Destinasi di Sulawesi Utara (Opsional) --</option>
+                  {NORTH_SULAWESI_CITIES.map((c) => (
+                    <option key={c.name} value={c.name}>
+                      {c.name} - {c.description}
+                    </option>
+                  ))}
+                </select>
+
+                {weatherLoading && (
+                  <div className="ai-weather-status">
+                    <span>⛅ Memeriksa data prakiraan cuaca 3 hari untuk {destinationCity}...</span>
+                  </div>
+                )}
+
+                {weatherPreview && !weatherLoading && (
+                  <div className="ai-weather-preview-box">
+                    <span className="weather-preview-icon">⛅</span>
+                    <span className="weather-preview-text">
+                      <strong>Konteks Cuaca Open-Meteo:</strong> {weatherPreview}
+                    </span>
+                  </div>
+                )}
+              </div>
+
+              {/* Textarea */}
               <div className="form-group">
                 <div className="ai-textarea-header">
                   <label htmlFor="ai-query">Kebutuhan Perjalanan Anda</label>
@@ -149,7 +244,7 @@ export const AssistantPage: React.FC = () => {
                   id="ai-query"
                   rows={3}
                   className="form-input form-textarea"
-                  placeholder="Contoh: Perjalanan keluarga 5 orang ke Danau Linow, butuh mobil matic yang nyaman dan bagasi muat 2 koper..."
+                  placeholder="Contoh: 4 orang, ke Tomohon, hemat BBM, budget 500 ribu per hari..."
                   value={query}
                   onChange={(e) => {
                     if (e.target.value.length <= 300) {
@@ -182,6 +277,7 @@ export const AssistantPage: React.FC = () => {
               <div className="ai-submit-bar">
                 <span className="ai-fleet-stat-badge">
                   🚗 {availableCarSummaries.length} mobil tersedia dianalisis
+                  {destinationCity ? ` | 📍 Cuaca ${destinationCity} disertakan` : ''}
                 </span>
 
                 <button
@@ -215,7 +311,7 @@ export const AssistantPage: React.FC = () => {
             <div className="ai-loading-box">
               <div className="spinner" />
               <h3>Sedang Memilihkan Mobil Terbaik...</h3>
-              <p>Menganalisis kapasitas, rute, transmisi, efisiensi bahan bakar, dan tarif sewa.</p>
+              <p>Menganalisis kapasitas, rute, cuaca Open-Meteo, transmisi, efisiensi bahan bakar, dan tarif sewa.</p>
             </div>
           )}
 

@@ -1748,6 +1748,200 @@ a:hover {
   margin-top: auto;
 }
 
+/* Weather Forecast Card on Car Details Page */
+.booking-weather-card {
+  background-color: var(--bg-card);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-md);
+  padding: 1.25rem;
+  margin: 1.25rem 0;
+  box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.booking-weather-card.weather-loading {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.75rem;
+  color: var(--text-muted);
+  font-size: 0.9rem;
+  background-color: #f8fafc;
+}
+
+.booking-weather-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.booking-weather-title {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  font-size: 0.95rem;
+  color: var(--text-main);
+}
+
+.weather-title-icon {
+  font-size: 1.15rem;
+}
+
+.weather-api-tag {
+  font-size: 0.7rem;
+  background-color: #eff6ff;
+  color: var(--primary);
+  border: 1px solid #dbeafe;
+  padding: 0.1rem 0.4rem;
+  border-radius: 9999px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.weather-rain-pill {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 0.2rem 0.6rem;
+  border-radius: 9999px;
+}
+
+.weather-rain-pill.rain-high {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border: 1px solid #fecaca;
+}
+
+.weather-rain-pill.rain-med {
+  background-color: #fef3c7;
+  color: #b45309;
+  border: 1px solid #fde68a;
+}
+
+.weather-rain-pill.rain-low {
+  background-color: #dcfce7;
+  color: #15803d;
+  border: 1px solid #bbf7d0;
+}
+
+.booking-weather-days-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(85px, 1fr));
+  gap: 0.5rem;
+}
+
+.weather-day-chip {
+  background-color: var(--bg-main);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-sm);
+  padding: 0.5rem 0.4rem;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.weather-day-date {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.weather-day-icon {
+  font-size: 1.4rem;
+  line-height: 1;
+  margin: 0.15rem 0;
+}
+
+.weather-day-temp {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.weather-day-prob {
+  font-size: 0.7rem;
+  color: var(--primary);
+  font-weight: 600;
+}
+
+.booking-weather-hint {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background: linear-gradient(135deg, #eff6ff 0%, #f0fdf4 100%);
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  color: #1e3a8a;
+  line-height: 1.4;
+}
+
+.booking-weather-hint .hint-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.booking-weather-unavailable {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  background-color: #f8fafc;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius-sm);
+}
+
+/* AI Destination & Weather Context in Assistant Page */
+.ai-destination-label {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-weight: 600;
+  font-size: 0.95rem;
+  margin-bottom: 0.35rem;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.ai-optional-tag {
+  font-size: 0.75rem;
+  color: var(--primary);
+  font-weight: normal;
+}
+
+.ai-weather-status {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.4rem;
+}
+
+.ai-weather-preview-box {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  background-color: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: var(--radius-sm);
+  padding: 0.65rem 0.85rem;
+  font-size: 0.85rem;
+  color: #1e3a8a;
+  margin-top: 0.5rem;
+  line-height: 1.4;
+}
+
+.weather-preview-icon {
+  font-size: 1.1rem;
+  flex-shrink: 0;
+}
+
+.weather-preview-text {
+  font-size: 0.85rem;
+}
+
 /* Responsive Media Queries */
 @media (max-width: 768px) {
   .navbar-hamburger {

@@ -15,6 +15,7 @@ interface CarSummaryInput {
 interface RequestPayload {
   query?: unknown;
   cars?: unknown;
+  weather?: unknown;
 }
 
 interface GeminiPart {
@@ -35,6 +36,32 @@ interface GeminiResponse {
     status?: string;
   };
 }
+
+// Known car brand names used for safety-net filtering in summary text
+const KNOWN_CAR_BRANDS = [
+  'toyota',
+  'honda',
+  'mitsubishi',
+  'daihatsu',
+  'suzuki',
+  'hyundai',
+  'nissan',
+  'mazda',
+  'wuling',
+  'ford',
+  'chevrolet',
+  'bmw',
+  'mercedes',
+  'audi',
+  'porsche',
+  'ferrari',
+  'tesla',
+  'kia',
+  'isuzu',
+  'volkswagen',
+  'chery',
+  'byd',
+];
 
 export default async function handler(req: VercelRequest, res: VercelResponse) {
   // 1. Method validation (HTTP 405)
@@ -64,7 +91,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  const { query, cars } = body;
+  const { query, cars, weather } = body;
 
   if (typeof query !== 'string' || !query.trim()) {
     return res.status(400).json({
@@ -77,6 +104,22 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     return res.status(400).json({
       error: 'Parameter "query" exceeds maximum allowed length of 300 characters.',
     });
+  }
+
+  // Optional weather field validation
+  let trimmedWeather = '';
+  if (weather !== undefined && weather !== null) {
+    if (typeof weather !== 'string') {
+      return res.status(400).json({
+        error: 'Parameter "weather" must be a string with a maximum of 300 characters.',
+      });
+    }
+    trimmedWeather = weather.trim();
+    if (trimmedWeather.length > 300) {
+      return res.status(400).json({
+        error: 'Parameter "weather" exceeds maximum allowed length of 300 characters.',
+      });
+    }
   }
 
   if (!Array.isArray(cars) || cars.length === 0) {
@@ -111,7 +154,7 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     });
   }
 
-  // Set of valid car IDs for strict response validation
+  // Set of valid car IDs and brands for strict response validation
   const validCarIdMap = new Map<string, CarSummaryInput>();
   validCars.forEach((c) => validCarIdMap.set(c.id, c));
 
@@ -123,26 +166,32 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
     )
     .join('\n');
 
+  const weatherSection = trimmedWeather
+    ? `\nKONDISI CUACA DESTINASI (KONTEKS TAMBAHAN):\n"${trimmedWeather}"\n(Pertimbangkan kondisi cuaca ini dalam memilih kendaraan yang tepat, misalnya mobil berground clearance tinggi atau SUV jika cuaca hujan/licin, namun tetap WAJIB HANYA merekomendasikan mobil yang tertera pada daftar di bawah ini.)\n`
+    : '';
+
   const systemPrompt = `Anda adalah penasihat rental mobil profesional, ramah, dan berpengalaman.
-Tugas Anda adalah memberikan rekomendasi mobil terbaik untuk pelanggan berdasarkan kebutuhan mereka.
+Tugas Anda adalah memberikan rekomendasi mobil terbaik untuk pelanggan berdasarkan kebutuhan perjalanan mereka.
 
 PERATURAN KETAT:
-1. Anda HANYA BOLEH merekomendasikan mobil yang ADA di dalam daftar mobil di bawah ini.
+1. Anda HANYA BOLEH merekomendasikan mobil yang ADA di dalam DAFTAR MOBIL YANG TERSEDIA di bawah ini.
 2. DILARANG KERAS mengarang, menambahkan mobil fiktif, mengubah spesifikasi, atau memodifikasi harga.
 3. Berikan MAKSIMAL 3 mobil terbaik yang paling cocok dengan kebutuhan pelanggan.
 4. Nilai parameter "carId" HARUS persis sama dengan salah satu ID mobil dalam daftar.
-5. Jika tidak ada mobil yang cocok dengan kebutuhan pengguna, kembalikan array "recommendations" kosong dan berikan penjelasan ramah pada "summary".
-6. Output HARUS berupa JSON valid dengan skema berikut:
+5. ATURAN SUMMARY: Teks pada field "summary" HANYA BOLEH menyebutkan nama mobil/merek yang BENAR-BENAR ADA di dalam DAFTAR MOBIL YANG TERSEDIA. DILARANG KERAS menyebutkan nama merek atau model kendaraan lain di luar daftar pada summary.
+6. ATURAN REASON: Setiap penjelasan pada field "reason" HANYA BOLEH menggunakan atribut yang tercantum pada data mobil (category, seats, transmission, fuelType, pricePerDay). DILARANG KERAS mengarang spesifikasi tambahan yang tidak tertulis (seperti kapasitas bagasi dalam liter, tenaga HP/tenaga kuda, sistem penggerak roda AWD/4WD jika tidak disebutkan, dsb).
+7. Jika tidak ada mobil yang cocok dengan kebutuhan pengguna, kembalikan array "recommendations" kosong dan berikan penjelasan ramah pada "summary".
+8. Output HARUS berupa JSON valid dengan skema berikut:
 {
   "recommendations": [
     {
       "carId": "string ID dari daftar",
-      "reason": "Penjelasan ringkas dalam bahasa Indonesia mengapa mobil ini cocok untuk kebutuhan pengguna"
+      "reason": "Penjelasan ringkas dalam bahasa Indonesia mengapa mobil ini cocok hanya berdasarkan data atribut mobil yang ada"
     }
   ],
-  "summary": "Ringkasan saran umum yang ramah dan membantu untuk pengguna dalam bahasa Indonesia"
+  "summary": "Ringkasan saran umum yang ramah dan membantu untuk pengguna dalam bahasa Indonesia, hanya menyebutkan mobil dari daftar yang disediakan"
 }
-
+${weatherSection}
 DAFTAR MOBIL YANG TERSEDIA:
 ${carsCatalogText}
 
@@ -207,7 +256,7 @@ PERTANYAAN / KEBUTUHAN PELANGGAN:
       });
     }
 
-    // 7. Validate and filter: drop any carId that is NOT in the provided list
+    // 7. Validate and filter recommendations: drop any carId that is NOT in the provided list
     const validatedRecommendations: Array<{ carId: string; reason: string }> = [];
 
     if (Array.isArray(parsed.recommendations)) {
@@ -233,10 +282,34 @@ PERTANYAAN / KEBUTUHAN PELANGGAN:
     // Max 3 recommendations
     const finalRecommendations = validatedRecommendations.slice(0, 3);
 
-    const summaryText =
+    let summaryText =
       typeof parsed.summary === 'string' && parsed.summary.trim()
         ? parsed.summary.trim()
         : 'Berikut adalah rekomendasi kendaraan terbaik yang kami pilihkan untuk perjalanan Anda.';
+
+    // 8. Safety net for summary: Remove sentences that mention brands/models not in the provided list
+    const disallowedBrands = KNOWN_CAR_BRANDS.filter(
+      (brand) => !validCars.some((c) => c.brand.toLowerCase().includes(brand))
+    );
+
+    if (disallowedBrands.length > 0) {
+      // Split into sentences
+      const sentences = summaryText.split(/(?<=[.!?])\s+/);
+      const filteredSentences = sentences.filter((sentence) => {
+        const sentenceLower = sentence.toLowerCase();
+        // Check if sentence mentions any disallowed brand
+        return !disallowedBrands.some((badBrand) => {
+          const regex = new RegExp(`\\b${badBrand}\\b`, 'i');
+          return regex.test(sentenceLower);
+        });
+      });
+
+      if (filteredSentences.length > 0) {
+        summaryText = filteredSentences.join(' ').trim();
+      } else {
+        summaryText = 'Berikut adalah rekomendasi kendaraan terbaik yang kami pilihkan untuk perjalanan Anda.';
+      }
+    }
 
     return res.status(200).json({
       recommendations: finalRecommendations,

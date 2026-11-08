@@ -19,3 +19,9 @@ export interface RecommendResponse {
   recommendations: Recommendation[];
   summary: string;
 }
+
+export interface RecommendRequest {
+  query: string;
+  cars: CarSummary[];
+  weather?: string;
+}

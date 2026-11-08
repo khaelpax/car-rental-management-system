@@ -2,9 +2,11 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useParams, Link, useLocation } from 'react-router-dom';
 import { getCarById } from '../services/carService';
 import { createBooking } from '../services/bookingService';
+import { getDailyForecast } from '../services/weatherService';
+import { NORTH_SULAWESI_CITIES, DEFAULT_CITY } from '../data/locations';
 import { useAuth } from '../hooks';
 import { LoadingSpinner } from '../components';
-import type { Car } from '../types';
+import type { Car, WeatherForecastResult } from '../types';
 import { formatIDR } from '../utils/formatters';
 
 export const CarDetailsPage: React.FC = () => {
@@ -17,11 +19,16 @@ export const CarDetailsPage: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
 
   // Booking Form State
+  const [pickupCityName, setPickupCityName] = useState(DEFAULT_CITY.name);
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [bookingError, setBookingError] = useState<string | null>(null);
   const [bookingSuccess, setBookingSuccess] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Weather Forecast State
+  const [weatherForecast, setWeatherForecast] = useState<WeatherForecastResult | null>(null);
+  const [weatherLoading, setWeatherLoading] = useState(false);
 
   // Today formatted as YYYY-MM-DD
   const today = useMemo(() => new Date().toISOString().split('T')[0], []);
@@ -88,6 +95,47 @@ export const CarDetailsPage: React.FC = () => {
     return { totalDays: days, totalPrice: price, dateError: null };
   }, [startDate, endDate, today, car]);
 
+  // Fetch Weather Forecast when dates are valid and city is selected
+  useEffect(() => {
+    if (!startDate || !endDate || totalDays <= 0 || dateError) {
+      setWeatherForecast(null);
+      return;
+    }
+
+    let isCancelled = false;
+    const city =
+      NORTH_SULAWESI_CITIES.find((c) => c.name === pickupCityName) || DEFAULT_CITY;
+
+    const fetchWeather = async () => {
+      setWeatherLoading(true);
+      try {
+        const result = await getDailyForecast(
+          city.latitude,
+          city.longitude,
+          startDate,
+          endDate,
+          city.name,
+          car?.category
+        );
+        if (!isCancelled) {
+          setWeatherForecast(result);
+        }
+      } catch (err) {
+        console.error('Weather forecast fetch error in page:', err);
+      } finally {
+        if (!isCancelled) {
+          setWeatherLoading(false);
+        }
+      }
+    };
+
+    fetchWeather();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [startDate, endDate, totalDays, dateError, pickupCityName, car?.category]);
+
   const handleBookingSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setBookingError(null);
@@ -138,7 +186,7 @@ export const CarDetailsPage: React.FC = () => {
       });
 
       setBookingSuccess(
-        `Reservation placed successfully for ${totalDays} day(s)! Status is currently pending confirmation.`
+        `Reservation placed successfully for ${totalDays} day(s) in ${pickupCityName}! Status is currently pending confirmation.`
       );
       setStartDate('');
       setEndDate('');
@@ -326,6 +374,27 @@ export const CarDetailsPage: React.FC = () => {
                   </div>
                 )}
 
+                {/* Pick-up City Dropdown */}
+                <div className="form-group">
+                  <label htmlFor="booking-pickup-city">
+                    📍 Pick-up City (Sulawesi Utara)
+                  </label>
+                  <select
+                    id="booking-pickup-city"
+                    className="form-input"
+                    value={pickupCityName}
+                    onChange={(e) => setPickupCityName(e.target.value)}
+                    disabled={isSubmitting}
+                  >
+                    {NORTH_SULAWESI_CITIES.map((city) => (
+                      <option key={city.name} value={city.name}>
+                        {city.name} ({city.description})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Dates Selection */}
                 <div className="booking-dates-grid">
                   <div className="form-group">
                     <label htmlFor="booking-start-date">Pick-up Date</label>
@@ -368,9 +437,77 @@ export const CarDetailsPage: React.FC = () => {
                   <p className="booking-date-error-text">⚠️ {dateError}</p>
                 )}
 
+                {/* Live Weather Forecast Card */}
+                {weatherLoading && (
+                  <div className="booking-weather-card weather-loading">
+                    <span className="spinner-icon">⛅</span>
+                    <span>Memeriksa prakiraan cuaca Open-Meteo untuk {pickupCityName}...</span>
+                  </div>
+                )}
+
+                {!weatherLoading && weatherForecast && (
+                  <div className="booking-weather-card">
+                    <div className="booking-weather-header">
+                      <div className="booking-weather-title">
+                        <span className="weather-title-icon">⛅</span>
+                        <strong>Prakiraan Cuaca {weatherForecast.cityName}</strong>
+                        <span className="weather-api-tag">Open-Meteo</span>
+                      </div>
+                      {weatherForecast.isAvailable && weatherForecast.maxRainProbability > 0 && (
+                        <span
+                          className={`weather-rain-pill ${
+                            weatherForecast.maxRainProbability >= 60
+                              ? 'rain-high'
+                              : weatherForecast.maxRainProbability >= 35
+                              ? 'rain-med'
+                              : 'rain-low'
+                          }`}
+                        >
+                          💧 Peluang Hujan: {weatherForecast.maxRainProbability}%
+                        </span>
+                      )}
+                    </div>
+
+                    {weatherForecast.isAvailable && weatherForecast.days.length > 0 ? (
+                      <>
+                        <div className="booking-weather-days-row">
+                          {weatherForecast.days.slice(0, 5).map((d) => (
+                            <div key={d.date} className="weather-day-chip">
+                              <span className="weather-day-date">
+                                {new Date(d.date).toLocaleDateString('id-ID', {
+                                  day: 'numeric',
+                                  month: 'short',
+                                })}
+                              </span>
+                              <span className="weather-day-icon">{d.weatherIcon}</span>
+                              <span className="weather-day-temp">
+                                {d.tempMin}°-{d.tempMax}°
+                              </span>
+                              <span className="weather-day-prob">💧{d.precipitationProbability}%</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="booking-weather-hint">
+                          <span className="hint-icon">💡</span>
+                          <span>{weatherForecast.hint}</span>
+                        </div>
+                      </>
+                    ) : (
+                      <div className="booking-weather-unavailable">
+                        <p>ℹ️ {weatherForecast.message || weatherForecast.hint}</p>
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Live Cost Calculation Summary */}
                 {totalDays > 0 && !dateError && (
                   <div className="booking-summary-box">
+                    <div className="booking-summary-row">
+                      <span>Kota Pengambilan:</span>
+                      <strong>{pickupCityName}</strong>
+                    </div>
                     <div className="booking-summary-row">
                       <span>Rental Duration:</span>
                       <strong>
