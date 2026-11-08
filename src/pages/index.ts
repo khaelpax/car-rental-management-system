@@ -5,4 +5,5 @@ export * from './CarsPage';
 export * from './CarDetailsPage';
 export * from './BookingsPage';
 export * from './AdminPage';
+export * from './AssistantPage';
 export * from './NotFoundPage';

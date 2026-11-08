@@ -10,6 +10,7 @@ import {
   CarDetailsPage,
   BookingsPage,
   AdminPage,
+  AssistantPage,
   NotFoundPage,
 } from './pages';
 
@@ -25,6 +26,14 @@ export const App: React.FC = () => {
             <Route path="cars" element={<CarsPage />} />
             <Route path="cars/:id" element={<CarDetailsPage />} />
             <Route path="bookings" element={<BookingsPage />} />
+            <Route
+              path="assistant"
+              element={
+                <ProtectedRoute>
+                  <AssistantPage />
+                </ProtectedRoute>
+              }
+            />
             <Route
               path="admin"
               element={

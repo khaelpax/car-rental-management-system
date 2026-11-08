@@ -68,6 +68,13 @@ export const Navbar: React.FC<NavbarProps> = ({ title = 'Car Rental' }) => {
           >
             Bookings
           </NavLink>
+          <NavLink
+            to="/assistant"
+            className={({ isActive }) => (isActive ? 'nav-link active' : 'nav-link')}
+            onClick={closeMenu}
+          >
+            ✨ AI Advisor
+          </NavLink>
 
           {isAdmin && (
             <NavLink
